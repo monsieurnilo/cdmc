@@ -1,0 +1,16 @@
+# Sur GitHub Pages, tout ce qui est dans le dépôt est public.
+# Seul index.html (généré par « Créer le lien », tout y est chiffré) doit être publié.
+
+# Photos
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.heic
+*.gif
+*.avif
+*.bmp
+# Fichier maître (textes privés en clair) et fichiers pour les potes (photos en clair)
+coupe-du-monde-de-la-coupe*.html
+# Exports de résultats
+resultats-coupes-*.json

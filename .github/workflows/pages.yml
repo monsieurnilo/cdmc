@@ -1,0 +1,68 @@
+# Publie l'application sur GitHub Pages à chaque push sur main.
+# Garde-fou : le déploiement échoue si une photo ou un texte privé en clair se trouve dans le dépôt.
+# L'index.html généré par « Créer le lien » passe : tout ce qui est privé y est chiffré.
+name: Déploiement GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Garde-fou confidentialité (rien de privé en clair)
+        run: |
+          set -euo pipefail
+          fail=0
+          # 1. Aucun fichier image dans le dépôt
+          images=$(find . -path ./.git -prune -o -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \
+            -o -iname '*.webp' -o -iname '*.heic' -o -iname '*.gif' -o -iname '*.avif' -o -iname '*.bmp' \) -print)
+          if [ -n "$images" ]; then
+            echo "::error::Fichiers image trouvés dans le dépôt (ils seraient publics) :"; echo "$images"; fail=1
+          fi
+          # 2. Aucun « fichier pour les potes » (HTML contenant les photos en clair)
+          packs=$(grep -rlE --include='*.html' 'id="pack-data"|data:image/(png|jpe?g|webp);base64,' . --exclude-dir=.git || true)
+          if [ -n "$packs" ]; then
+            echo "::error::Fichier HTML contenant des photos en clair :"; echo "$packs"; fail=1
+          fi
+          # 3. Aucun fichier maître (HTML contenant les textes privés en clair).
+          #    Seul l'index.html généré par « Créer le lien » se publie : photos et textes y sont chiffrés.
+          masters=$(grep -rl --include='*.html' 'id="private-data"' . --exclude-dir=.git || true)
+          if [ -n "$masters" ]; then
+            echo "::error::Fichier HTML contenant les textes privés en clair (fichier maître) :"; echo "$masters"; fail=1
+          fi
+          exit $fail
+
+      - name: Préparer le site (uniquement index.html)
+        run: |
+          mkdir -p _site
+          cp index.html _site/index.html
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
